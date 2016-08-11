@@ -1,0 +1,392 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+  
+ 
+<mapper namespace="sql.bbs">
+
+<select id="totalCnt" resultType="int">
+   select count(*) from board
+</select>
+
+ <update id="sunbunUp" parameterType="map">
+ <![CDATA[
+    update board set sunbun=sunbun+1  where ref = #{ref} and sunbun >= #{sunbun}+1
+ ]]>
+ </update>
+
+ 
+ 
+ <!-- same normalsame normalsame normalsame normalsame normalsame normalsame normalsame normalsame normal  -->
+ 
+<select id="bbsList" resultType="bow.board.model.BbsDTOnorm">
+ <![CDATA[
+		select rn , board_idx , subject , content, writer , 
+		       readnum, ref , lev , sunbun ,writedate		      
+		  from 
+		(
+		    select rownum as rn ,a.*
+		    from
+		   (select * from board order by ref desc, sunbun asc )a
+		)
+        where rn >= (#{cp}-1)*#{ls}+1 and rn <= #{cp}*#{ls} 
+ ]]>
+</select>
+
+
+
+<select id="bbsContent" parameterType="int" resultType="bbsDTO">
+    select board_idx, subject, content, ref, lev, sunbun, writedate, 
+         (case 
+       when password >=0 then 1
+       when password is null then 0
+       end)as password
+    from board where board_idx=#{board_idx}
+</select>
+
+<insert id="bbsWrite" parameterType="bbsDTO">
+    insert into board (board_idx, subject, content, writer, ref, lev, sunbun ,writedate, password)  
+                        values(
+	                             board_idx_seq.nextval, #{subject},
+	                             #{content}, #{writer},
+	                              ( select case 
+	                                when max(ref) = 0 then 1 
+	                                when count(ref) = 0 then 1 
+	                                when max(ref) > 0 then max(ref)+1 
+	                                end from board
+	                              ),
+	                             0, 0, sysdate, #{password}                           
+                              )
+</insert>
+
+
+
+<update id="updateContent" parameterType="bbsDTO">
+    update board set subject = #{subject}, 
+                     content = #{content}, 
+                     pwd = #{pwd},
+                     writedate = sysdate 
+                 where board_idx =#{board_idx}     
+</update>
+
+
+ <insert id="reWrite" parameterType="bbsDTO">
+ <![CDATA[
+   insert into board values( 
+                               board_idx_seq.nextval, #{subject},
+                               #{content}, #{writer}, #{ref},
+                               #{lev}+1, #{sunbun}+1, sysdate, #{password}    
+                           )
+ ]]> 
+ </insert>
+
+<!-- same normalsame normalsame normalsame normalsame normalsame normalsame normalsame normalsame normal  -->
+
+<!-- <select id="bbsListNormal" resultType="bbsDTOnorm">
+ <![CDATA[
+		select board_idx , subject , writer , readnum , lev ,writedate , datechar 
+		from 
+		(
+		    select rownum as rn ,a.*, to_char(a.writedate,'yyyy-mm-dd hh24:mm') as datechar
+		    from
+		   (select * from board order by ref desc, sunbun asc )a
+		)
+        where rn >= (#{cp}-1)*#{ls}+1 and rn <= #{cp}*#{ls} 
+ ]]>
+</select>
+ -->
+
+<select id="bbsListNormal" resultType="bbsDTOnorm">
+ <![CDATA[
+        
+   select  f.* ,( select  case when list_se_idx=0 then to_char(list_idx) else to_char(list_idx)||' - '||to_char(list_se_idx) end   
+	                  from   
+				    (
+				        select 
+				              a_a.board_idx , a_a.ref , a_a.lev ,a_a.lev_me , a_a.lev_point, g_g.rn as list_idx ,          
+				              (select count(ref) from board where ref =a_a.ref and sunbun>=a_a.sunbun and a_a.lev != 0)as list_se_idx
+				               from 
+				                  board a_a,
+				                  (
+				                    select row_number() over (order by ref) as rn , ref 
+				                    from (select ref from board group by ref order by ref desc) 
+				                    order by rn desc
+				                   )g_g
+				               where a_a.ref =g_g.ref 
+				               order by a_a.ref desc , a_a.sunbun asc
+				    )
+				    where ref=f.ref and lev=f.lev-1 and lev_me=f.lev_point 
+                ) as list_idx_pointer  
+   from
+    (
+     select t.* ,rownum as inx 
+      from
+       (select 
+          a.board_idx , a.subject ,a.writer, a.ref , a.lev, a.lev_me , a.lev_point, a.sunbun , g.rn as list_idx ,
+          (select count(*)from comment_board where board_idx=a.board_idx)as news,
+          (select count(ref) from board where ref =a.ref and sunbun>=a.sunbun and a.lev != 0)as list_se_idx,
+          to_char(a.writedate,'yyyy"년 "mm"월 "dd"일  " hh24"시 "mm"분"') as datechar,
+          a.writedate ,a.readnum         
+           from 
+              board a,
+              (
+                select row_number() over (order by ref) as rn , ref 
+                from (select ref from board group by ref order by ref desc) 
+                order by rn desc
+               )g
+           where a.ref =g.ref 
+           order by a.ref desc , a.sunbun asc
+         )t
+       )f
+       where inx >= (#{cp}-1)*#{ls}+1  and inx <= #{cp}*#{ls} 
+ ]]>
+</select>
+
+
+<select id="bbsContentNormal" parameterType="int" resultType="bbsDTOnorm">
+    select board_idx, subject, content, ref, lev, sunbun, writer, readnum, to_char(writedate,'yyyy"년 " mm"월" dd"일   "hh24"시 "mm"분"') as datechar,
+         (case 
+       when password >=0 then 1
+       when password is null then 0
+       end)as password
+    from board where board_idx=#{board_idx}
+</select>
+
+
+
+
+
+
+<insert id="bbsWriteNormal" parameterType="bbsDTOnorm">
+ <![CDATA[
+     insert into board (board_idx,subject, content, writer,lev, sunbun, 
+                        writedate, password, lev_me, lev_point,readnum ,ref)
+                      values
+                      (
+	                        board_idx_seq.nextval, #{subject}, #{content}, #{writer},0,0,sysdate,#{password},1,0,0,
+	                        (
+		                        case when (select max(ref) from board)=0 then 1
+		                             when (select max(ref) from board)is null then 1
+		                        else (select max(ref)+1 from board)
+		                        end 
+	                        )
+	                  )    
+ ]]>
+</insert>
+
+
+
+
+
+<select id="passwordConfirm" parameterType="map" resultType="int">
+
+   select count(*) from board where password = #{password} and board_idx =#{board_idx}
+
+</select>
+
+<select id="pwdCheckNormal" parameterType="java.util.Map" resultType="int">
+
+ select count(*) from board where board_idx =#{board_idx} and password=#{password} 
+
+</select>
+
+
+
+<update id="updateContentNormal" parameterType="bbsDTOnorm">
+    update board set 
+                     writer =#{writer},
+                     subject = #{subject}, 
+                     content = #{content}, 
+                     writedate = sysdate 
+                 where board_idx =#{board_idx}     
+</update>
+
+<delete id="deleteContentNormal" parameterType="int">
+
+   delete from board where board_idx=#{board_idx} 
+
+</delete>
+
+<update id="afterDeleteNormal" parameterType="int">
+
+ <![CDATA[
+    update board set sunbun=sunbun-1 
+    where ref = (select ref from board where board_idx=#{board_idx}) 
+    and sunbun > (select sunbun from board where board_idx=#{board_idx})
+ ]]>
+
+</update>
+
+<!-- <select id="lookForCommentsReply" parameterType="int" resultType="int">
+
+   select sum(total)
+   from  ( select count(*) as total from comment_board where board_idx =#{board_idx}
+             union all
+           select count(*) as total from board 
+             where 
+            ref = (select ref from board where board_idx =#{board_idx})
+            and 
+            lev =(select lev+1 from board where board_idx =#{board_idx})
+         )
+
+</select> -->
+
+<select id="lookForCommentsReply" parameterType="int" resultType="int">
+
+    select sum(total)
+   from  ( select count(*) as total from comment_board where board_idx =#{board_idx}
+             union all
+           select count(*) as total from board 
+             where 
+            ref = (select ref from board where board_idx =#{board_idx})
+            and 
+            lev =(select lev+1 from board where board_idx =#{board_idx})
+            and
+            lev_point=(select lev_me from board where board_idx =#{board_idx})
+         )
+         
+</select>
+
+<update id="boardHasComment_del" parameterType="int">
+	 <![CDATA[
+	    update board 
+	    set subject = '삭제 된 게시물 입니다.', 
+	    content = concat('삭제된 게시물 입니다.&nbsp;&nbsp;&nbsp;' ,to_char(sysdate, 'yyyy-mm-dd hh12:mi')), 
+	    password =null 
+	    where board_idx=#{board_idx}
+	 ]]>
+</update>
+
+ <!-- <insert id="replyWriteNormal" parameterType="bbsDTOnorm">
+ <![CDATA[
+    insert into board (board_idx, subject, content, writer, ref, lev, sunbun ,writedate, password)  
+                        values(
+	                             board_idx_seq.nextval, #{subject},
+	                             #{content}, #{writer}, #{ref},
+	                             #{lev}+1, ${sunbun}+1, sysdate, #{password}                           
+                              )
+ ]]> 
+ </insert> -->
+ 
+  <insert id="replyWriteNormal" parameterType="bbsDTOnorm">
+ <![CDATA[
+    insert into board (board_idx, subject, content, writer, ref, lev, sunbun ,writedate, password, lev_me, lev_point,readnum)  
+                        values(
+	                             board_idx_seq.nextval, #{subject},
+	                             #{content}, #{writer}, #{ref},
+	                             #{lev}+1, #{sunbun}+1, sysdate, #{password},
+	                              (
+	                                case when (select max(lev_me) from board where ref=#{ref} and lev=#{lev}+1) is null then 1
+	                                     when (select max(lev_me) from board where ref=#{ref} and lev=#{lev}+1)=0 then 1
+	                                     else (select max(lev_me)+1 from board where ref=#{ref} and lev=#{lev}+1)
+	                                     end
+	                              ),
+	                              (select lev_me from board where board_idx=#{board_idx}),0                           
+                              )
+ ]]> 
+ 
+ </insert>
+ 
+  
+ <update id="updateReadnumNormal" parameterType="int">
+ 
+   update board set readnum = readnum+1 where board_idx = #{board_idx}
+   
+ </update>
+ 
+ 
+ <select id="boardSrcListNormal" parameterType="map" resultType="bbsDTOnorm">
+ <![CDATA[
+     select * from 
+     (
+      select rownum as rr , rn as list_idx, board_idx , subject , writer , readnum , lev ,writedate , datechar,
+       (select count(*) from comment_board where board_idx = b.board_idx ) as news 
+		from 
+		(
+		    select rownum as rn ,a.*, to_char(a.writedate,'yyyy-mm-dd hh24:mm') as datechar
+		    from
+		   (select * from board where ${option} like '%'||#{option_value}||'%' 
+		   order by writedate )a
+		    order by rownum desc
+		)b        
+      )c
+      where  rr >= (( #{cp}-1)*#{ls} )+1 and rr <=#{cp}*#{ls}  
+        
+ ]]>
+ </select>
+ 
+ <select id="boardSrcCntNormal" parameterType="map" resultType="int">
+ 
+ <![CDATA[
+ 
+   select count(*) from board where ${option} like '%'||#{option_value}||'%' 
+ 
+ ]]>
+ 
+ </select>
+ 
+ 
+ <select id="pageNaviNormal" parameterType="java.util.Map" resultType="int">
+  
+  <![CDATA[
+       select case when mod(rn,#{ls})>0 then trunc(rn/#{ls})+1 
+               else trunc(rn/#{ls})    
+       end as result
+       from
+      (
+       select rownum as rn , a.* from
+      (select * from board order by ref desc, sunbun asc)a
+       )b
+       where board_idx=#{board_idx}
+ ]]>
+ </select>
+ 
+ <select id="afterRewriteNaviNormal" parameterType="map" resultType="int">
+ 
+   select board_idx from board where ref=#{ref} and sunbun=#{sunbun}
+ 
+ </select>
+ 
+ <select id="afterWriteNaviNormal" resultType="int">
+ 
+    select max(board_idx) from board
+ 
+ </select>
+ 
+<!-- tree comment Start tree comment Start tree comment Start tree comment Start tree comment Start -->
+
+  <select id="commentList" parameterType="int" resultType="commentDTO">
+ select row_number() over (order by a.comment_board_idx) as list_idx , a.*
+ from
+     (
+     select * from comment_board 
+     where board_idx =#{board_idx} 
+     order by comment_board_idx desc
+     )a
+     order by list_idx desc
+  </select>
+
+
+  <insert id="commentInsert" parameterType="commentDTO">
+      
+    insert into comment_board values(  
+                                    comment_board_idx_seq.nextval,#{board_idx}, 
+                                    #{content}, #{writer}, sysdate, #{password}
+                                   )       
+  </insert>
+
+   <update id="commentUpdate" parameterType="commentDTO">
+   
+     update comment_board set content =#{content} ,writedate = #{sysdate} ,password = #{password} where comment_board_idx =#{comment_board_idx}
+   
+   </update>
+
+
+  <delete id="commentDelte" parameterType="map">
+  
+    delete from comment_board where  comment_board_idx =#{comment_board_idx} and password =#{password}
+  
+  </delete>
+
+
+</mapper>
+ 
